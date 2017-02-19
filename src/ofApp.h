@@ -17,7 +17,7 @@
 #ifdef USE_PI_CAMERA
 #include "ofxCvPiCam.h"
 #endif
-
+#include "GPIOClass.h"
 
 
 using namespace ofxCv;
@@ -115,7 +115,8 @@ private:
     ofxCv::ContourFinder contourFinder;
     bool showLabels;
    
-    
+    GPIOClass* m_gpio4;
+    bool m_movement = false;
    
     ofImage img;
     Configuration config;

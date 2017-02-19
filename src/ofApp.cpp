@@ -12,9 +12,11 @@
 #include "ofGraphics.h"
 #include "ofAppRunner.h"
 
+
 //--------------------------------------------------------------
 
-void ofApp::setup() {
+void ofApp::setup()
+{
 
     // glfwWindowHint(GLFW_DECORATED, GL_TRUE);
     //glfwWindowHint(GLFW_FOCUSED, GL_TRUE);
@@ -32,7 +34,11 @@ void ofApp::setup() {
     // center window   
     int centerx = ofGetScreenWidth() / 2 - (ofGetWindowWidth() / 2);
     int centery = ofGetScreenHeight() / 2 - (ofGetWindowHeight() / 2);
-    ofSetWindowPosition(centerx, centery);
+    
+    #ifndef USE_PI_CAMERA
+		ofSetWindowPosition(centerx, centery);
+    #endif
+    
     config.load(CONFIGURATION_FILENAME);
     font.load(OF_TTF_SANS, 64, true, true);
     fontsmall.load(OF_TTF_SANS, 8, true, true);
@@ -42,9 +48,11 @@ void ofApp::setup() {
     string awindowtitle;
     awindowtitle.append(WINDOWTITLE);
     awindowtitle.append(threadstitle);
+    
+    #ifndef USE_PI_CAMERA
     ofSetWindowTitle(awindowtitle);
-
-
+	#endif
+/*
 
     isVideoMode = video.load(config.getSettings().camvideofile);
 
@@ -58,6 +66,9 @@ void ofApp::setup() {
         cam.setup(CAMERAWIDTH, CAMERAHEIGHT, true);
     }
 
+*/
+	isVideoMode = false;
+	cam.setup(CAMERAWIDTH, CAMERAHEIGHT, true);
 
     camRotationChanged(config.getSettings().camrotation);
     camContrastChanged(config.getSettings().camcontrast);
@@ -85,7 +96,7 @@ void ofApp::setup() {
 
     // Background subtraction 
     // Gaussian Mixture-based Background/Foreground Segmentation Algorithm
-    
+
     // open cv original
     //BackgroundSubtractorMOG pBSMOG = 
     /* http://stackoverflow.com/questions/21873757/opencv-c-how-to-slow-down-background-adaptation-of-backgroundsubtractormog
@@ -102,12 +113,12 @@ void ofApp::setup() {
      * !!!!!!!This is much faster than the previous one 
      * !!!!!!!and it can eleminate detecting shadows too.
      * 
-    */
-    
+     */
+
     this->mog2 = new BackgroundSubtractorMOG2(
-            config.getSettings().moghistory,    // Increasing the history value will slow down the adaptation rate.
-            config.getSettings().mogthreshold,  
-            false);                              // detecting shadows.
+            config.getSettings().moghistory, // Increasing the history value will slow down the adaptation rate.
+            config.getSettings().mogthreshold,
+            false); // detecting shadows.
 
 
     // this->mog2->get
@@ -147,11 +158,18 @@ void ofApp::setup() {
     ofAddListener(blobTracker.peopleOut, this, &ofApp::eventHandlerPeapleOut);
     createThreads();
 
+
+
+	m_gpio4 = new GPIOClass("4"); //create new GPIO
+
     cout << "Setup success!" << endl;
 }
 //--------------------------------------------------------------
 
-void ofApp::exit() {
+void ofApp::exit()
+{
+	delete m_gpio4;
+	m_gpio4 = NULL;
     //     if( isVideoMode )
     //         video.close();
     //     cam.close();
@@ -164,14 +182,16 @@ void ofApp::exit() {
 }
 //--------------------------------------------------------------
 
-void ofApp::setupHttp() {
+void ofApp::setupHttp()
+{
     // Setup HTTP POST Unit
     ofAddListener(httpUtils.newResponseEvent, this, &ofApp::newResponse);
     httpUtils.start();
 }
 //--------------------------------------------------------------
 
-void ofApp::newResponse(ofxHttpResponse &response) {
+void ofApp::newResponse(ofxHttpResponse &response)
+{
     string responseStr = ofToString(response.status) + ":" + (string) response.responseBody;
     // cout << responseStr << endl;
 }
@@ -180,7 +200,8 @@ void ofApp::newResponse(ofxHttpResponse &response) {
 /**
  *  initCounturing 
  */
-void ofApp::initCounturFinder() {
+void ofApp::initCounturFinder()
+{
     contourFinder.setMinAreaRadius(config.getSettings().contourminarearadius);
     contourFinder.setMaxAreaRadius(config.getSettings().contourmaxarearadius);
     contourFinder.setThreshold(config.getSettings().contourthreshold);
@@ -206,7 +227,8 @@ void ofApp::initCounturFinder() {
 /**
  *  Update 
  */
-void ofApp::update() {
+void ofApp::update()
+{
 
 
 #ifdef USE_PI_CAMERA
@@ -395,38 +417,53 @@ void ofApp::update() {
 }
 //--------------------------------------------------------------
 
-void ofApp::eventHandlerPeapleIn(int &howmany) {
-    if (isHuman() == 0)
+void ofApp::eventHandlerPeapleIn(int &howmany)
+{
+   // if (isHuman() == 0)
+   //     return;
+	//m_movement = true;
 
-        return;
+    if (m_movement) {
 
-    this->personsIn += howmany;
-    this->personstotal += howmany;
+        this->personsIn += howmany;
+        this->personstotal += howmany;
 
-    httpRequest();
+        httpRequest();
 
-    string msg = " " + ofToString(howmany) + " IN ";
-    //   exportOutputImage(msg);
-
+        string msg = " " + ofToString(howmany) + " IN ";
+        //   exportOutputImage(msg);
+    }
+    else
+    {
+		cout << "NO MOVEMENT DETECTED!!!" << endl;
+	}
 
 }
 //--------------------------------------------------------------
 
-void ofApp::eventHandlerPeapleOut(int &howmany) {
-    if (isHuman() == 0)
+void ofApp::eventHandlerPeapleOut(int &howmany)
+{
+    //if (isHuman() == 0)
+    //    return;
+	//m_movement = true;
 
-        return;
+    if (m_movement) {
+        this->personsOut += howmany;
+        this->personstotal -= howmany;
 
-    this->personsOut += howmany;
-    this->personstotal -= howmany;
-
-    httpRequest();
-    string msg = " " + ofToString(howmany) + " OUT ";
-    // exportOutputImage(msg);
-
+        httpRequest();
+        string msg = " " + ofToString(howmany) + " OUT ";
+        // exportOutputImage(msg);
+    }
+    else
+    {
+		cout << "NO MOVEMENT DETECTED!!!" << endl;
+	}
+  
 }
 
-void ofApp::httpRequest() {
+void ofApp::httpRequest()
+{
 
     try {
         ofxHttpForm form;
@@ -447,7 +484,8 @@ void ofApp::httpRequest() {
 
 int maxframes = 2;
 
-void ofApp::createThreads() {
+void ofApp::createThreads()
+{
 
     return;
     ThreadedCounterOut* currentCounterOut1 = nullptr;
@@ -487,7 +525,8 @@ void ofApp::createThreads() {
 }
 //--------------------------------------------------------------
 
-void ofApp::makeMask() {
+void ofApp::makeMask()
+{
     if (config.maskPoints.size() == 0) {
 
         config.maskPoints.push_back(cv::Point(2, 2));
@@ -509,7 +548,8 @@ void ofApp::makeMask() {
 }
 //--------------------------------------------------------------
 
-void ofApp::draw() {
+void ofApp::draw()
+{
     ofSetColor(255);
     //ofBackground(255);
 
@@ -525,6 +565,14 @@ void ofApp::draw() {
     //	
     //	estimated.draw();
 #ifdef USE_PI_CAMERA
+
+
+	 
+   
+
+
+
+
     if (!frame.empty()) {
         switch (config.getSettings().camviewmode) {
             case 1:
@@ -638,7 +686,8 @@ void ofApp::draw() {
 
 //--------------------------------------------------------------
 
-void ofApp::drawContourFinder() {
+void ofApp::drawContourFinder()
+{
     RectTracker& tracker = contourFinder.getTracker();
     if (showLabels) {
         ofNoFill();
@@ -751,7 +800,8 @@ void ofApp::drawContourFinder() {
 //--------------------------------------------------------------
 // don't work! 
 
-int ofApp::isHuman() {
+int ofApp::isHuman()
+{
     if (config.getSettings().humandetection == 1) {
         int maxvalue = 0;
         int humand = 0;
@@ -775,16 +825,19 @@ int ofApp::isHuman() {
 }
 //--------------------------------------------------------------
 
-void ofApp::drawFinders() {
+void ofApp::drawFinders()
+{
 }
 //--------------------------------------------------------------
 
-void ofApp::drawFinder() {
+void ofApp::drawFinder()
+{
 
 }
 //--------------------------------------------------------------
 
-void ofApp::drawCounters() {
+void ofApp::drawCounters()
+{
 
     ofPushStyle();
     ofSetColor(ofColor::white);
@@ -820,12 +873,17 @@ void ofApp::drawCounters() {
     ofDrawBitmapStringHighlight(buffer, CAMERAWIDTH - 28, CAMERAHEIGHT - 6);
 
 
+
+
+
+
     ofPopStyle();
 
 }
 //--------------------------------------------------------------
 
-void ofApp::drawMaskArea() {
+void ofApp::drawMaskArea()
+{
     ofPushStyle();
     ofPolyline polyline1;
     ofSetColor(ofColor::yellow);
@@ -839,7 +897,8 @@ void ofApp::drawMaskArea() {
 }
 //--------------------------------------------------------------
 
-void ofApp::drawThresholdLines() {
+void ofApp::drawThresholdLines()
+{
 
     ofPushStyle();
     ofSetColor(ofColor::yellowGreen);
@@ -883,7 +942,8 @@ void ofApp::drawThresholdLines() {
 }
 //--------------------------------------------------------------
 
-void ofApp::drawGui() {
+void ofApp::drawGui()
+{
 
     ofPushStyle();
 
@@ -981,11 +1041,21 @@ void ofApp::drawGui() {
 
     ofPopStyle();
 
+	
+   
+    string value;
+    m_gpio4->getval_gpio(value);
+    //ofDrawBitmapStringHighlight(value, ofGetWidth() - 20,  ofGetHeight() - 50);
+    font.drawString(value.c_str(), ofGetWidth() - 60,  ofGetHeight() - 50);
+    
+    m_movement = value == "1";   
+
 
 }
 //--------------------------------------------------------------
 
-ofRectangle ofApp::getRectangleFromMask() {
+ofRectangle ofApp::getRectangleFromMask()
+{
 
     ofRectangle rectangle(0, 0, CAMERAWIDTH, CAMERAWIDTH);
 
@@ -1039,7 +1109,8 @@ ofRectangle ofApp::getRectangleFromMask() {
 //--------------------------------------------------------------
 // obsolete use ofRectangle instead...
 
-ofRectangle ofApp::isIntersect(ofRectangle a, ofRectangle b) {
+ofRectangle ofApp::isIntersect(ofRectangle a, ofRectangle b)
+{
     ofRectangle r;
     r.x = (a.x > b.x) ? a.x : b.x;
     r.y = (a.y > b.y) ? a.y : b.y;
@@ -1056,14 +1127,16 @@ ofRectangle ofApp::isIntersect(ofRectangle a, ofRectangle b) {
 // obsolete use ofRectangle instead...
 
 bool ofApp::isInside(int pointX, int pointY, int rectX, int rectY,
-        int rectWidth, int rectHeight) {
+        int rectWidth, int rectHeight)
+{
 
     return (rectX <= pointX && pointX <= rectX + rectWidth) &&
             (rectY <= pointY && pointY <= rectY + rectHeight);
 }
 //--------------------------------------------------------------
 
-void ofApp::updateMouseEvents() {
+void ofApp::updateMouseEvents()
+{
     uint64_t currentMillis = ofGetElapsedTimeMillis();
     int value = 0;
     if (mousePress) {
@@ -1236,7 +1309,8 @@ void ofApp::updateMouseEvents() {
 }
 //--------------------------------------------------------------
 
-void ofApp::keyPressed(int key) {
+void ofApp::keyPressed(int key)
+{
 
     switch (key) {
 
@@ -1292,7 +1366,8 @@ void ofApp::keyPressed(int key) {
 }
 //--------------------------------------------------------------
 
-void ofApp::keyReleased(int key) {
+void ofApp::keyReleased(int key)
+{
     if (key == 'f') {
 
         activateFinder = false;
@@ -1302,7 +1377,8 @@ void ofApp::keyReleased(int key) {
 }
 //--------------------------------------------------------------
 
-void ofApp::mouseMoved(int x, int y) {
+void ofApp::mouseMoved(int x, int y)
+{
 
     mouseMove.x = x;
     mouseMove.y = y;
@@ -1310,7 +1386,8 @@ void ofApp::mouseMoved(int x, int y) {
 }
 //--------------------------------------------------------------
 
-void ofApp::mouseReleased(int x, int y, int button) {
+void ofApp::mouseReleased(int x, int y, int button)
+{
 
     mousePress = false;
     configIndex = -1;
@@ -1318,7 +1395,8 @@ void ofApp::mouseReleased(int x, int y, int button) {
 }
 //--------------------------------------------------------------
 
-void ofApp::mousePressed(int x, int y, int button) {
+void ofApp::mousePressed(int x, int y, int button)
+{
 
     mousePress = true;
 
@@ -1600,14 +1678,16 @@ void ofApp::mousePressed(int x, int y, int button) {
 }
 //--------------------------------------------------------------
 
-void ofApp::saveConfig() {
+void ofApp::saveConfig()
+{
 
     this->config.save(CONFIGURATION_FILENAME);
     cout << "Configuration saved!\n";
 }
 //--------------------------------------------------------------
 
-void ofApp::resetCounters() {
+void ofApp::resetCounters()
+{
 
     personsIn = 0;
     personsOut = 0;
@@ -1617,7 +1697,8 @@ void ofApp::resetCounters() {
 }
 //--------------------------------------------------------------
 
-void ofApp::setMask() {
+void ofApp::setMask()
+{
     if (drawnPoints.size() == 0)
         return;
 
@@ -1637,7 +1718,8 @@ void ofApp::setMask() {
 }
 //--------------------------------------------------------------
 
-void ofApp::removeMask() {
+void ofApp::removeMask()
+{
 
     config.maskPoints.clear();
     drawnPoints.clear();
@@ -1650,7 +1732,8 @@ void ofApp::removeMask() {
 }
 //--------------------------------------------------------------
 
-void ofApp::cropGrayImage() {
+void ofApp::cropGrayImage()
+{
     if (contourFinderVector.size() < 1) {
         return;
     }
@@ -1672,7 +1755,8 @@ void ofApp::cropGrayImage() {
 }
 //--------------------------------------------------------------
 
-void ofApp::exportOutputImage(string info) {
+void ofApp::exportOutputImage(string info)
+{
 
     ofxCv::toOf(output, img);
     img.saveImage(ofGetTimestampString() + info + ".jpg");
@@ -1680,7 +1764,8 @@ void ofApp::exportOutputImage(string info) {
 
 }
 
-void ofApp::exportGrayImage(string path) {
+void ofApp::exportGrayImage(string path)
+{
 
     switch (config.getSettings().camviewmode) {
         case 1:
@@ -1766,7 +1851,8 @@ void ofApp::exportGrayImage(string path) {
 //}
 //--------------------------------------------------------------
 
-void ofApp::camRotationChanged(int value) {
+void ofApp::camRotationChanged(int value)
+{
 
 #ifdef USE_PI_CAMERA
 
@@ -1776,7 +1862,8 @@ void ofApp::camRotationChanged(int value) {
 }
 //--------------------------------------------------------------
 
-void ofApp::camContrastChanged(int value) {
+void ofApp::camContrastChanged(int value)
+{
 
 #ifdef USE_PI_CAMERA
 
@@ -1785,7 +1872,8 @@ void ofApp::camContrastChanged(int value) {
 }
 //--------------------------------------------------------------
 
-void ofApp::camBrightnessChanged(int value) {
+void ofApp::camBrightnessChanged(int value)
+{
 
 #ifdef USE_PI_CAMERA
     cam.setBrightness(value);

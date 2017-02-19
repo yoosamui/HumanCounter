@@ -6,7 +6,7 @@
 
 //-----------------------------------------------------------------------------
 // uncomment this if you want to use the raspberry PI CAM.
-//#define USE_PI_CAMERA
+#define USE_PI_CAMERA
 //-----------------------------------------------------------------------------
 
 class drawLine

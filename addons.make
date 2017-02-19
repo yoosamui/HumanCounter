@@ -1,4 +1,4 @@
-#ofxCvPiCam
+ofxCvPiCam
 ofxGui
 ofxHttpUtils
 ofxOpenCv
